@@ -12,8 +12,13 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * @author xuqiang
@@ -36,6 +41,7 @@ public class QRCodeUtil {
      * @param context 设置二维码内容
      * @param width
      * @param height
+     * @param logo    是否需要添加logo
      * @return
      */
     public static BufferedImage encode(String context, int width, int height, boolean logo) {
@@ -88,13 +94,23 @@ public class QRCodeUtil {
     }
 
     /**
-     * 返回logoImage
+     * 返回logoImage, 大于60像素会返回缩略图
+     *
      * @param logoPath logo地址
      * @return
      */
     public static Image getLogo(String logoPath) {
         try {
-            return ImageIO.read(new File(logoPath));
+            Image logo = ImageIO.read(new File(logoPath));
+            int width = logo.getWidth(null), height = logo.getHeight(null);
+            boolean widthGt, heightGt = false;
+            if ((widthGt = (width > LOGO_SIZE)) || (heightGt = (height > LOGO_SIZE))) {
+                // 如何logo宽度大于 LOGO_SIZE 则获取缩略图
+                width = widthGt ? LOGO_SIZE : width;
+                height = heightGt || height > LOGO_SIZE ? LOGO_SIZE : height;
+                return logo.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+            }
+            return logo;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -110,9 +126,7 @@ public class QRCodeUtil {
      * @throws IOException
      */
     public static BufferedImage insertLogo(BufferedImage img, Image logo) {
-        int width = logo.getWidth(null);
-        int height = logo.getHeight(null);
-
+        int width = logo.getWidth(null), height = logo.getHeight(null);
         Graphics2D graphics = img.createGraphics();
         int x = (img.getWidth() - width) / 2;
         int y = (img.getHeight() - height) / 2;
@@ -129,9 +143,10 @@ public class QRCodeUtil {
     /**
      * 获取二维码
      *
-     * @param context 设置二维码内容
+     * @param context  设置二维码内容
      * @param width
      * @param height
+     * @param logoPath
      * @return
      */
     public static BufferedImage encode(String context, int width, int height, String logoPath) {
@@ -146,13 +161,39 @@ public class QRCodeUtil {
      * @param context 设置二维码内容
      * @return
      */
-    public static BufferedImage encode(String context, String logoPath) throws WriterException, IOException {
+    public static BufferedImage encode(String context, String logoPath) {
         return encode(context, QRCODE_SIZE, QRCODE_SIZE, logoPath);
+    }
+
+    /**
+     * 批量生成二维码，生成zip压缩包
+     *
+     * @param outputStream
+     * @param logoPath
+     * @param context
+     */
+    public static void encodeBatch(OutputStream outputStream, String logoPath, List<String> context) {
+        ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, Charset.forName(CHASET));
+        try {
+            for (String s : context) {
+                BufferedImage image = encode(s, logoPath);
+                zipOutputStream.putNextEntry(new ZipEntry(s + "." + FORMAT));
+                ImageIO.write(image, FORMAT, zipOutputStream);
+            }
+            zipOutputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     public static void main(String[] args) throws IOException, WriterException {
         String logoPath = "C:\\Users\\15968\\Documents\\IdeaProjects\\work\\zxing-demo\\src\\main\\resources\\logo.png";
+//        String logoPath = "C:\\Users\\15968\\Documents\\IdeaProjects\\work\\zxing-demo\\src\\main\\resources\\logo-big.png";
         ImageIO.write(encode("我是一个苦逼的程序猿", logoPath), FORMAT, new File("D:\\test1.png"));
+
+//        String[] context = new String[]{"我是一个苦逼的程序员", "苦逼就算了还丑", "丑就算了还穷"};
+//        encodeBatch(new FileOutputStream("D:\\test.zip"), logoPath, Arrays.asList(context));
 
     }
 
